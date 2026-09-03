@@ -427,4 +427,4 @@ The backend auto-seeds on first run if MongoDB is empty:
 
 ---
 
-> **Built for learning & demonstration.** A solid foundation for an agentic commerce operating system. Not a production-ready financial platform — but a faithful implementation of AP2-style buyer protocol with real Razorpay integration.
+> **Reference implementation — not certified for production financial workloads
