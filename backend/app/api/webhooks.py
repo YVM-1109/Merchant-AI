@@ -6,7 +6,7 @@ updates CartMandate / AuditLog documents, and publishes
 events to Redis for async processing.
 """
 import hashlib
-import hmac
+import hmac as hmac_lib
 import json
 
 from fastapi import APIRouter, Request, HTTPException, status, Depends
@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from app.razorpay_client import RazorpayClient
 from app.models import CartMandate, AuditLog
+from app.config import settings
 import redis.asyncio as aioredis
 
 router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
@@ -50,27 +51,36 @@ async def razorpay_webhook(request: Request):
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Webhook signature verification failed: {exc}",
+            detail="Webhook signature verification failed",
         )
 
     event_type = event.get("event", "unknown")
 
     # Route based on event type
-    if event_type == "payment.captured":
-        await _handle_payment_captured(event)
-    elif event_type == "payment.failed":
-        await _handle_payment_failed(event)
-    elif event_type == "order.paid":
-        await _handle_order_paid(event)
-    elif event_type == "refund.processed":
-        await _handle_refund_processed(event)
+    try:
+        if event_type == "payment.captured":
+            await _handle_payment_captured(event)
+        elif event_type == "payment.failed":
+            await _handle_payment_failed(event)
+        elif event_type == "order.paid":
+            await _handle_order_paid(event)
+        elif event_type == "refund.processed":
+            await _handle_refund_processed(event)
+    except Exception as exc:
+        # Log error without exposing internal details
+        print(f"Webhook processing error for {event_type}: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Webhook processing failed",
+        )
 
     # Publish to Redis for async processing
-    from app.config import settings
     redis = aioredis.from_url(settings.REDIS_URL)
-    event_data = json.dumps(event)
-    await redis.publish("razorpay_events", event_data)
-    await redis.close()
+    try:
+        event_data = json.dumps(event)
+        await redis.publish("razorpay_events", event_data)
+    finally:
+        await redis.close()
 
     return WebhookResponse(
         success=True,
@@ -85,26 +95,44 @@ async def _handle_payment_captured(event: dict):
     payload = event.get("payload", {}).get("payment", {}).get("entity", {})
     order_id = payload.get("order_id", "")
 
-    # Find the CartMandate by receipt (we stored cart_mandate_id as receipt)
+    # Fetch the Razorpay order to get its receipt (= cart_mandate_id)
+    razorpay = RazorpayClient()
+    try:
+        order = razorpay.fetch_order(order_id)
+        cart_mandate_id = order.get("receipt", "")
+    except Exception:
+        cart_mandate_id = ""
+
+    # Find the CartMandate by its mandate_id (which is the receipt)
     cart_mandate = await CartMandate.find_one(
-        CartMandate.status == "signed_pending_payment"
-    ).first_or_none()
+        CartMandate.status == "signed_pending_payment",
+        CartMandate.mandate_id == cart_mandate_id,
+    )
 
     if cart_mandate:
         cart_mandate.status = "paid"
         await cart_mandate.save()
 
     # Log audit entry
+    merchant_id = payload.get("notes", {}).get("merchant_id", "")
+    audit_sig = hmac_lib.new(
+        settings.RAZORPAY_WEBHOOK_SECRET.encode() if settings.RAZORPAY_WEBHOOK_SECRET else b"",
+        json.dumps(event, sort_keys=True).encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
     audit = AuditLog(
         audit_id=f"audit_{order_id[:8]}" if order_id else None,
         action_type="CAPTURE_PAYMENT",
         amount=payload.get("amount", 0),
         currency=payload.get("currency", "INR"),
         status="SUCCESS",
-        merchant_id=payload.get("notes", {}).get("merchant_id", ""),
+        actor="WebhookHandler",
+        merchant_id=merchant_id,
         buyer_id=payload.get("notes", {}).get("buyer_did", ""),
         mandate_id=payload.get("notes", {}).get("cart_mandate_id", ""),
         reasoning=f"Payment captured for order {order_id}",
+        hmac_signature=audit_sig,
     )
     await audit.create()
 
@@ -114,10 +142,19 @@ async def _handle_payment_failed(event: dict):
     payload = event.get("payload", {}).get("payment", {}).get("entity", {})
     order_id = payload.get("order_id", "")
 
+    # Fetch the Razorpay order to get its receipt (= cart_mandate_id)
+    razorpay = RazorpayClient()
+    try:
+        order = razorpay.fetch_order(order_id)
+        cart_mandate_id = order.get("receipt", "")
+    except Exception:
+        cart_mandate_id = ""
+
     # Find and update CartMandate
     cart_mandate = await CartMandate.find_one(
-        CartMandate.status.in_(["signed_pending_payment", "paid"])
-    ).first_or_none()
+        CartMandate.status.in_(["signed_pending_payment", "paid"]),
+        CartMandate.mandate_id == cart_mandate_id,
+    )
 
     if cart_mandate:
         cart_mandate.status = "payment_failed"
@@ -130,8 +167,8 @@ async def _handle_order_paid(event: dict):
     order_id = payload.get("id", "")
 
     cart_mandate = await CartMandate.find_one(
-        CartMandate.mandate_id == order_id  # or receipt matches
-    ).first_or_none()
+        CartMandate.mandate_id == payload.get("receipt", "")
+    )
 
     if cart_mandate:
         cart_mandate.status = "settled"
@@ -143,15 +180,24 @@ async def _handle_refund_processed(event: dict):
     payload = event.get("payload", {}).get("refund", {}).get("entity", {})
     payment_id = payload.get("payment_id", "")
 
+    merchant_id = payload.get("notes", {}).get("merchant_id", "")
+    refund_sig = hmac_lib.new(
+        settings.RAZORPAY_WEBHOOK_SECRET.encode() if settings.RAZORPAY_WEBHOOK_SECRET else b"",
+        json.dumps(event, sort_keys=True).encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
     audit = AuditLog(
         audit_id=f"refund_{payload.get('id', 'unknown')[:12]}",
         action_type="REFUND",
         amount=payload.get("amount", 0),
         currency=payload.get("currency", "INR"),
         status="SUCCESS",
-        merchant_id="",
+        actor="WebhookHandler",
+        merchant_id=merchant_id,
         buyer_id="",
         mandate_id=payload.get("notes", {}).get("cart_mandate_id", ""),
         reasoning=f"Refund processed for payment {payment_id}",
+        hmac_signature=refund_sig,
     )
     await audit.create()

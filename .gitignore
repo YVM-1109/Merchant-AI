@@ -1,0 +1,39 @@
+# Secrets
+.env
+.env.local
+backend/.env
+backend/.env.local
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.Python
+
+# Build outputs
+frontend/.next/
+frontend/out/
+build/
+dist/
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

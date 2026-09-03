@@ -9,8 +9,10 @@ class Settings(BaseSettings):
 
     RAZORPAY_KEY_ID: str = Field(default="")
     RAZORPAY_KEY_SECRET: str = Field(default="")
+    RAZORPAY_WEBHOOK_SECRET: str = Field(default="")
     JWT_SECRET: str = Field(default="")
     ENCRYPTION_KEY: str = Field(default="")
+    ALLOWED_ORIGINS: str = Field(default="http://localhost:3000")
 
     OPENAI_API_KEY: str = Field(default="")
     ANTHROPIC_API_KEY: str = Field(default="")

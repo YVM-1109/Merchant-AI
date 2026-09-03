@@ -15,7 +15,7 @@ from app.agents.graph import AgentGraph
 from app.ap2.mandates import create_intent_mandate, sign_cart_mandate
 from app.agents.guardian import GuardianAgent
 from app.razorpay_client import RazorpayClient
-from app.models import IntentMandate, CartMandate, CartItem
+from app.models import IntentMandate, CartMandate, CartItem, Product
 from app.agents.tools import AgentTools
 
 router = APIRouter(prefix="/api/v1", tags=["checkout"])
@@ -55,15 +55,18 @@ async def create_checkout(req: CheckoutRequest):
         IntentMandate.buyer_did == req.buyer_did,
     )
     if not intent_mandate:
-        intent_mandate_id = await create_intent_mandate(
-            merchant_id=req.merchant_id,
+        intent_mandate_doc = create_intent_mandate(
             buyer_did=req.buyer_did,
-            max_amount_per_txn=500000,  # ₹5000 default
-            daily_limit=1000000,  # ₹10000 daily default
+            agent_did="CheckoutAPI",
+            merchant_id=req.merchant_id,
+            max_amount_per_txn=500000,
+            max_amount_daily=1000000,
             allowed_categories=["electronics", "books", "clothing"],
-            merchant_whitelist=[req.merchant_id],
-            expiry_hours=48,
+            merchant_dids=[req.merchant_id],
+            duration_hours=48,
         )
+        await intent_mandate_doc.create()
+        intent_mandate_id = intent_mandate_doc.mandate_id
     else:
         intent_mandate_id = intent_mandate.mandate_id
 
@@ -73,8 +76,15 @@ async def create_checkout(req: CheckoutRequest):
     cart_items: list[CartItem] = []
     total_amount = 0
 
+    # Track categories for Guardian validation
+    categories: set[str] = set()
+
     for pid in req.product_ids:
-        product = await Product.get(pid)
+        product = await Product.find_one(
+            Product.product_id == pid,
+            Product.merchant_id == req.merchant_id,
+            Product.is_active == True,
+        )
         if not product:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -83,6 +93,7 @@ async def create_checkout(req: CheckoutRequest):
         qty = req.quantities.get(pid, 1)
         line_total = product.base_price_paise * qty
         total_amount += line_total
+        categories.add(product.category)
         cart_items.append(CartItem(
             product_id=pid,
             product_name=product.name,
@@ -118,7 +129,7 @@ async def create_checkout(req: CheckoutRequest):
         merchant_id=req.merchant_id,
         buyer_id=req.buyer_did,
         mandate_id=intent_mandate_id,
-        category=cart_items[0].product_name,
+        category=next(iter(categories)) if categories else "uncategorized",
         agent_id="CheckoutAPI",
         request_payload={"cart_items": [item.model_dump() for item in cart_items]},
     )
@@ -143,15 +154,12 @@ async def create_checkout(req: CheckoutRequest):
             message=f"Purchase blocked by Guardian: {guardian_result['reason']}",
         )
 
-    # Step 4: Log approval and create Razorpay order
+    # Step 4: Log approval
     await guardian.log_decision(action, guardian_result)
 
-    razorpay = RazorpayClient()
-    order = razorpay.create_order(
-        amount=total_amount,
-        currency="INR",
-        receipt=cart_mandate_id,
-    )
+    from uuid import uuid4
+    nonce = f"nonce_{uuid4().hex[:16]}"
+    expires_at = datetime.utcnow() + timedelta(days=7)
 
     # Step 5: Save the Cart Mandate to the DB
     cart_mandate = CartMandate(
@@ -164,8 +172,30 @@ async def create_checkout(req: CheckoutRequest):
         currency="INR",
         buyer_signature=buyer_signature,
         status="signed_pending_payment",
+        nonce=nonce,
+        expires_at=expires_at,
     )
     await cart_mandate.create()
+
+    # Step 6: Create Razorpay order with cart_mandate_id in notes
+    razorpay = RazorpayClient()
+    order = razorpay.create_order(
+        amount=total_amount,
+        currency="INR",
+        receipt=cart_mandate_id,
+        notes={
+            "cart_mandate_id": cart_mandate_id,
+            "merchant_id": req.merchant_id,
+            "buyer_did": req.buyer_did,
+        },
+    )
+
+    # Validate Razorpay order creation succeeded
+    if order.get("error"):
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Razorpay order creation failed: {order['detail']}",
+        )
 
     return CheckoutResponse(
         success=True,

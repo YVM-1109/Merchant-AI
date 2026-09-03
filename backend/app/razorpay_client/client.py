@@ -6,6 +6,9 @@ downstream agent/service gets a uniform response shape.
 import razorpay
 from razorpay.errors import BadRequestError, GatewayError, ServerError
 
+import hashlib
+import hmac
+
 from app.config import settings
 
 
@@ -21,6 +24,35 @@ class RazorpayClient:
         self._client = razorpay.Client(
             auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
         )
+
+    # ── Webhook Verification ────────────────────────────────────────
+
+    def verify_webhook_signature(self, body: bytes, signature: str) -> dict:
+        """Verify Razorpay webhook signature using HMAC-SHA256.
+
+        Args:
+            body: Raw request body bytes.
+            signature: Value from X-Razorpay-Signature header.
+
+        Returns:
+            Decoded webhook event dict.
+
+        Raises:
+            ValueError: If signature is invalid or webhook secret missing.
+        """
+        secret = settings.RAZORPAY_WEBHOOK_SECRET or ""
+        if not secret:
+            raise ValueError("RAZORPAY_WEBHOOK_SECRET not configured")
+
+        expected = hmac.new(
+            secret.encode(), body, hashlib.sha256
+        ).hexdigest()
+
+        if not hmac.compare_digest(expected, signature):
+            raise ValueError("Invalid Razorpay webhook signature")
+
+        import json
+        return json.loads(body)
 
     # ── Health ──────────────────────────────────────────────────────
 

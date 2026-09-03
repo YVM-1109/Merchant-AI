@@ -31,10 +31,18 @@ app = FastAPI(
 
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import settings
+
+_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",")] if settings.ALLOWED_ORIGINS else ["http://localhost:3000"]
+if "*" in _origins:
+    _origins = ["*"]  # Wildcard explicitly, no credentials
+    _allow_credentials = False
+else:
+    _allow_credentials = True
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_origins,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
