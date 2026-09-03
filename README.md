@@ -1,6 +1,6 @@
 # Merchant-AI — Agentic Commerce Operating System
 
-An agentic commerce platform for **Razorpay merchants**, built around the **AP2 buyer protocol** (Agent Buyer Protocol v2). Features **AI Growth Co-pilot**, **JWS-signed mandates**, **Guardian fraud protection**, **Redis pub/sub event streaming**, and a **multi-agent LangGraph architecture**. Backend: **FastAPI + Beanie + MongoDB 7.0 + Redis**. Frontend: **Next.js 14 + shadcn/ui + Tailwind + Recharts**.
+An agentic commerce platform for **Razorpay merchants**, built around the **AP2 buyer protocol** (Agent Buyer Protocol v2). Features **AI Growth Co-pilot** (auto-generates cart-recovery campaigns), **cryptographically signed purchase commitments** (JWS), **Guardian fraud protection** (real-time purchase validation), **Redis pub/sub event streaming**, and a **multi-agent LangGraph architecture**. Backend: **FastAPI + Beanie + MongoDB 7.0 + Redis**. Frontend: **Next.js 14 + shadcn/ui + Tailwind + Recharts**.
 
 ---
 
@@ -8,13 +8,13 @@ An agentic commerce platform for **Razorpay merchants**, built around the **AP2 
 
 | Feature | Description |
 |---|---|
-| **AI Growth Co-pilot** | Analyzes abandoned carts & mandrates, generates recovery campaigns, upsell recommendations, and automated payment links via LangGraph agents |
-| **AP2 Protocol** | JWS-signed Cart Mandates — buyers sign off-chain mandates with their private key; Guardian agent validates scope before any payment is created |
-| **Guardian Agent** | Real-time fraud & bounds-checking: daily spend limits, category whitelisting, velocity scoring, merchant DIDs verification |
-| **Agentic Buyer Flow** | ShopBot agent discovers products, presents CartMandate, gets Guardian approval, and settles via Razorpay — fully auditable |
+| **AI Growth Co-pilot** | Analyzes abandoned carts, generates recovery campaigns, upsell recommendations, and automated payment links via agent-based AI |
+| **AP2 Protocol** | Cryptographically signed purchase commitments — buyers sign off-chain purchase orders with their private key; Guardian validates scope before any payment is created |
+| **Guardian Agent** | Real-time fraud & bounds-checking: daily spend limits, category whitelisting, velocity scoring, merchant identity verification |
+| **Agentic Buyer Flow** | ShopBot discovers products, presents a signed purchase order, gets Guardian approval, and settles via Razorpay — fully auditable |
 | **Razorpay Integration** | Orders, Payments, Refunds, and Webhook signature verification with HMAC-SHA256 |
-| **Multi-Agent Architecture** | LangGraph StateGraph with 4 specialized agents: GrowthAgent, BuyerAgent, GuardianAgent, CatalogAgent, FailureAgent |
-| **Real-time Events** | Redis pub/sub for Razorpay webhook events — async processing by FailureAgent on payment failures |
+| **Multi-Agent Architecture** | LangGraph agent graph: Growth Agent (recovery campaigns), Buyer Agent (ShopBot), Guardian Agent (fraud validation), Catalog Agent (product discovery), Failure Agent (retry logic) |
+| **Real-time Events** | Redis pub/sub for Razorpay webhook events — async processing by the Failure Agent on payment failures |
 | **Audit Trail** | Immutable audit log with HMAC signatures — every money action chained and verifiable |
 | **MCP Catalog Server** | Exposes product catalog as MCP tools for agent discovery |
 
@@ -32,31 +32,31 @@ merchant-ai/
 │   │   ├── models/                 # Beanie Document models (9 schemas)
 │   │   │   ├── merchant.py
 │   │   │   ├── product.py
-│   │   │   ├── intent_mandate.py
-│   │   │   ├── cart_mandate.py
+│   │   │   ├── intent_mandate.py     # Purchase intent definitions
+│   │   │   ├── cart_mandate.py      # Signed purchase order model
 │   │   │   ├── transaction.py
 │   │   │   ├── audit.py
 │   │   │   └── ...
 │   │   ├── api/                    # FastAPI routers
 │   │   │   ├── merchants.py
 │   │   │   ├── products.py
-│   │   │   ├── checkout.py         # AP2 cart-mandate checkout flow
+│   │   │   ├── checkout.py         # AP2 signed purchase order checkout flow
 │   │   │   ├── webhooks.py         # Razorpay webhook + HMAC verification
-│   │   │   ├── growth.py           # Trigger GrowthAgent campaigns
+│   │   │   ├── growth.py           # Trigger Growth Agent campaigns
 │   │   │   ├── analytics.py        # Mongo aggregation pipelines
 │   │   │   └── audit.py            # Audit log queries
 │   │   ├── agents/                 # LangGraph multi-agent system
-│   │   │   ├── graph.py            # Compiled StateGraph
-│   │   │   ├── guardian.py         # Money-action bounds checking
+│   │   │   ├── graph.py            # Compiled agent graph (StateGraph)
+│   │   │   ├── guardian.py         # Purchase validation & fraud checks
 │   │   │   ├── growth.py           # AI growth co-pilot
-│   │   │   ├── buyer.py           # ShopBot / BuyerAgent
+│   │   │   ├── buyer.py           # ShopBot / Buyer Agent
 │   │   │   ├── catalog.py          # Product discovery
 │   │   │   ├── failure.py          # Error recovery & retry logic
 │   │   │   └── tools.py            # Shared agent tool scaffold
 │   │   ├── ap2/                    # AP2 protocol core
 │   │   │   ├── crypto.py           # JWS sign/verify (trust boundary)
-│   │   │   ├── mandates.py         # IntentMandate + CartMandate creation
-│   │   │   └── schemas.py          # JSON-LD mandate structure
+│   │   │   ├── mandates.py         # Purchase intent + signed order creation
+│   │   │   └── schemas.py          # JSON-LD purchase order structure
 │   │   ├── mcp/
 │   │   │   └── server.py           # MCP Catalog Server
 │   │   └── razorpay_client/        # Razorpay SDK wrapper
@@ -84,25 +84,25 @@ merchant-ai/
 ### AP2 Buyer Checkout Flow
 
 ```
-1. BUYER presents signed CartMandate (JWS)
+1. BUYER presents signed purchase order (JWS)
    → POST /api/v1/checkout
-   → Buyer signs mandate with private key off-chain
+   → Buyer signs a purchase commitment with their private key off-chain
 
 2. GUARDIAN validation
-   → GuardianAgent validates IntentMandate scope:
+   → Guardian Agent validates the purchase commitment scope:
      - Daily spend ≤ max_amount_daily
      - Transaction ≤ max_amount_per_txn
      - Category ∈ allowed_categories
-     - Merchant DID ∈ merchant_dids whitelist
+     - Merchant DID ∈ merchant whitelist
      - Within duration_hours window
 
-3. CART MANDATE stored
+3. PURCHASE ORDER stored
    → Status: signed_pending_payment
    → Nonce + expiry (7 days) for replay protection
 
 4. RAZORPAY ORDER created
-   → receipt = cart_mandate_id
-   → notes: { cart_mandate_id, merchant_id, buyer_did }
+   → receipt = purchase_order_id
+   → notes: { purchase_order_id, merchant_id, buyer_did }
 
 5. FRONTEND collects payment
    → Razorpay Checkout button
@@ -110,9 +110,9 @@ merchant-ai/
 6. WEBHOOK confirmation (trusted path only)
    → POST /api/v1/webhooks/razorpay
    → HMAC-SHA256 signature verification
-   → payment.captured → CartMandate.status = "paid"
-   → Order.paid → CartMandate.status = "settled"
-   → Event published to Redis → FailureAgent processes
+   → payment.captured → PurchaseOrder.status = "paid"
+   → Order.paid → PurchaseOrder.status = "settled"
+   → Event published to Redis → Failure Agent processes
 
 7. AUDIT LOG entry
    → Immutable, HMAC-signed chain
@@ -124,11 +124,11 @@ merchant-ai/
 
 ```
 1. AGENT analyzes abandoned carts
-   → Queries CartMandate with status = signed_pending_payment
+   → Queries PurchaseOrder with status = signed_pending_payment
    → Identifies stale (>24h, not settled)
 
 2. CAMPAIGN generation
-   → GrowthAgent uses LLM to generate recovery campaign
+   → Growth Agent uses LLM to generate recovery campaign
    → Creates Razorpay Payment Link via API
 
 3. DISPATCH
@@ -136,7 +136,7 @@ merchant-ai/
    → Tracks click-through + payment
 
 4. FAILURE handling
-   → FailureAgent catches failed webhooks
+   → Failure Agent catches failed webhooks
    → Queues retry with exponential backoff
    → Redis pub/sub triggers reprocessing
 ```
@@ -150,9 +150,9 @@ merchant-ai/
 | **Authentication** | JWT (HS256) — access tokens with configurable expiry |
 | **Password Security** | N/A (API-first — auth handled by integration layer) |
 | **Webhooks** | HMAC-SHA256 verification of `X-Razorpay-Signature` against `RAZORPAY_WEBHOOK_SECRET` |
-| **JWS Mandates** | Cart Mandates signed with buyer's ES256 private key; verified against buyer's public key |
-| **Guardian Agent** | Enforces spend limits, category whitelist, merchant whitelist, time window — on-chain validation before any Razorpay order creation |
-| **Nonce & Expiry** | Each CartMandate has a UUID nonce + 7-day expiry; prevents replay attacks |
+| **Signed Purchase Orders** | Purchase commitments signed with buyer's ES256 private key; verified against buyer's public key |
+| **Guardian Agent** | Enforces spend limits, category whitelist, merchant whitelist, time window — validation before any Razorpay order creation |
+| **Nonce & Expiry** | Each purchase order has a UUID nonce + 7-day expiry; prevents replay attacks |
 | **CORS** | Hardened — origins parsed from `ALLOWED_ORIGINS` env, stripped, wildcard handled separately from credentials |
 | **Secrets** | All secrets in environment variables — never hardcoded; `.env` + `.env.local` in `.gitignore` |
 | **Audit Trail** | Immutable log entries with HMAC-SHA256 signatures chained to previous entry — tamper-evident |
@@ -247,13 +247,13 @@ cd backend
 python -m pytest tests/ -v
 ```
 
-**37 tests** covering:
+**21 tests** covering:
 
-- AP2 cryptography (JWS sign/verify, tamper detection)
-- GuardianAgent bounds checking (approval + denial paths)
-- Checkout flow (IntentMandate reuse, CartMandate signing)
-- Webhook handler (signature verification, Redis pub/sub)
-- Razorpay client wrapper (order creation, webhook verification)
+- AP2 cryptography (JWS signing & verification, tamper detection)
+- Guardian Agent bounds checking (approval + denial paths)
+- Checkout flow (purchase intent reuse, signed purchase order creation)
+- Webhook handler (HMAC signature verification, Redis pub/sub)
+- Razorpay client wrapper (order creation, webhook signature verification)
 
 Frontend E2E tests:
 
@@ -340,7 +340,7 @@ services:
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/api/v1/checkout` | AP2 checkout flow — creates IntentMandate, signs CartMandate, Guardian validates |
+| POST | `/api/v1/checkout` | AP2 checkout flow — creates purchase intent, signs purchase order, Guardian validates |
 
 ### Webhooks
 
@@ -352,13 +352,13 @@ services:
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/api/v1/growth/campaigns` | Trigger AI GrowthAgent campaign generation |
+| POST | `/api/v1/growth/campaigns` | Trigger AI Growth Agent campaign generation |
 
 ### Analytics
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/v1/analytics/dashboard/{merchant_id}` | Mongo aggregation: revenue, mandate volume, failure rate |
+| GET | `/api/v1/analytics/dashboard/{merchant_id}` | Mongo aggregation: revenue, purchase order volume, payment failure rate |
 
 ---
 
@@ -387,15 +387,15 @@ The backend auto-seeds on first run if MongoDB is empty:
 |---|---|---|
 | Merchant | 1 | `demo-merchant` — for quick testing |
 | Products | 3 | Wireless mouse, mechanical keyboard, USB-C hub |
-| IntentMandate | 0 | Created on-demand per buyer |
+| Purchase Intent | 0 | Created on-demand per checkout |
 
 ---
 
 ## 🐛 Known Limitations
 
 1. **Single-instance Redis** — Redis pub/sub uses single-node in Docker Compose. For multi-instance deployments, ensure a shared Redis cluster.
-2. **No email delivery** — GrowthAgent generates campaigns and payment links, but email/SMS dispatch is not yet integrated.
-3. **Webhook idempotency** — Currently relies on CartMandate status transitions. For high-throughput, add explicit idempotency key tracking.
+2. **No email delivery** — The Growth Agent generates campaigns and payment links, but email/SMS dispatch is not yet integrated.
+3. **Webhook idempotency** — Currently relies on purchase order status transitions. For high-throughput, add explicit idempotency key tracking.
 4. **Agent persistence** — LangGraph checkpoints are persisted to MongoDB, but long-running conversations may need archive strategy.
 
 ---
