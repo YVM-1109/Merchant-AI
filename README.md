@@ -169,7 +169,7 @@ merchant-ai/
 | Docker Desktop | ✅ v29+ recommended |
 | Python | ✅ 3.11+ (for local dev) |
 | Node.js | ✅ 24+ (for local dev) |
-| Razorpay Account | ✅ Active Razorpay account with test mode API keys (`rzp_test_...`) |
+| Razorpay Account | ✅ Active Razorpay merchant account (test or live mode) — provides API keys and webhook secret |
 
 ---
 
