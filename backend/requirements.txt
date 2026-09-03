@@ -1,0 +1,14 @@
+fastapi==0.115.6
+uvicorn[standard]==0.32.0
+beanie==1.27.0
+razorpay==1.4.2
+pydantic-settings==2.7.1
+pymongo==4.10.1
+python-jose[cryptography]==3.3.0
+langchain==0.3.25
+langchain-openai==0.2.0
+langchain-anthropic==0.2.4
+langgraph==0.4.8
+redis==5.2.1
+pytest==8.3.4
+pytest-asyncio==0.23.8
