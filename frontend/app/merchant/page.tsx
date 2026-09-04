@@ -9,6 +9,11 @@ import {
 import NavigationToggle from "@/components/NavigationToggle";
 import DashboardCharts from "@/components/DashboardCharts";
 
+interface Merchant {
+  merchant_id: string;
+  business_name: string;
+}
+
 interface DashboardStats {
   revenue: {
     total_revenue_paise: number;
@@ -26,12 +31,31 @@ interface DashboardStats {
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [merchants, setMerchants] = useState<Merchant[]>([]);
   const [loading, setLoading] = useState(true);
-  const [merchantId, setMerchantId] = useState("m_test");
+  const [merchantId, setMerchantId] = useState("");
 
   useEffect(() => {
-    loadDashboard();
+    loadMerchants();
+  }, []);
+
+  useEffect(() => {
+    if (merchantId) {
+      loadDashboard();
+    }
   }, [merchantId]);
+
+  async function loadMerchants() {
+    try {
+      const res = await api.get("/api/v1/merchants/");
+      setMerchants(res.data);
+      if (res.data.length > 0) setMerchantId(res.data[0].merchant_id);
+    } catch (err) {
+      console.error("Failed to load merchants:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function loadDashboard() {
     try {
@@ -81,8 +105,12 @@ export default function DashboardPage() {
           onChange={(e) => setMerchantId(e.target.value)}
           className="border rounded px-2 py-1"
         >
-          <option value="m_test">m_test</option>
-          <option value="m_test_electronics">m_test_electronics</option>
+          <option value="">Select Merchant</option>
+          {merchants.map((m) => (
+            <option key={m.merchant_id} value={m.merchant_id}>
+              {m.business_name} ({m.merchant_id})
+            </option>
+          ))}
         </select>
       </div>
 
