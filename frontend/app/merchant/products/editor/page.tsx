@@ -19,6 +19,8 @@ interface Merchant {
   business_name: string;
 }
 
+export const dynamic = "force-dynamic";
+
 export default function ProductEditorPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
