@@ -1,430 +1,318 @@
-# Merchant-AI — Agentic Commerce Operating System
+<!-- mermaid:agentic-commerce -->
+<div align="center">
 
-An agentic commerce platform for **Razorpay merchants**, built around the **AP2 buyer protocol** (Agent Buyer Protocol v2). Features **AI Growth Co-pilot** (auto-generates cart-recovery campaigns), **cryptographically signed purchase commitments** (JWS), **Guardian fraud protection** (real-time purchase validation), **Redis pub/sub event streaming**, and a **multi-agent LangGraph architecture**. Backend: **FastAPI + Beanie + MongoDB 7.0 + Redis**. Frontend: **Next.js 14 + shadcn/ui + Tailwind + Recharts**.
+```
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                   MERCHANT–AI  ·  AGENTIC COMMERCE OS                        ║
+║                                                                              ║
+║           AP2 Protocol  ·  Guardian Agent  ·  LangGraph Multi-Agent          ║
+║                                                                              ║
+║    < buyer> ──JWS─> < guardian> ──validated─> < razorpay order> ──settle   ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+```
+
+**Agentic Commerce Operating System for Razorpay Merchants**
+
+Precision-engineered agent infrastructure: cryptographic purchase commitments (AP2), real-time fraud validation (Guardian), and autonomous cart-recovery agents (LangGraph).
+
+[Documentation](https://github.com/YVM-1109/Merchant-AI) · [API Reference](#-api-reference) · [Architecture](#-architecture) · [Deployment](#-deployment)
+
+</div>
 
 ---
 
-## ✨ Key Features
+## Overview
 
-| Feature | Description |
+Merchant–AI is an **agentic commerce operating system** that sits between a buyer and the Razorpay payment stack. It replaces static checkout flows with a **multi-agent protocol**: buyers interact with a ShopBot agent, the Guardian Agent cryptographically validates purchase intent, and a signed purchase order is settled on Razorpay.
+
+```
+buyer agent      ──→ intent_mandate (buyer's key) ──→
+guardian agent   ──→ verifies scope & fraud bounds ──→
+cart_mandate     ──→ JWS signed cart (buyer + guardian) ──→
+razorpay         ──→ order.created → payment.captured ──→
+audit_log        ──→ immutable HMAC-chained record
+```
+
+### What you get
+
+| Component         | Responsibility                                           |
 |---|---|
-| **AI Growth Co-pilot** | Analyzes abandoned carts, generates recovery campaigns, upsell recommendations, and automated payment links via agent-based AI |
-| **AP2 Protocol** | Cryptographically signed purchase commitments — buyers sign off-chain purchase orders with their private key; Guardian validates scope before any payment is created |
-| **Guardian Agent** | Real-time fraud & bounds-checking: daily spend limits, category whitelisting, velocity scoring, merchant identity verification |
-| **Agentic Buyer Flow** | ShopBot discovers products, presents a signed purchase order, gets Guardian approval, and settles via Razorpay — fully auditable |
-| **Razorpay Integration** | Orders, Payments, Refunds, and Webhook signature verification with HMAC-SHA256 |
-| **Multi-Agent Architecture** | LangGraph agent graph: Growth Agent (recovery campaigns), Buyer Agent (ShopBot), Guardian Agent (fraud validation), Catalog Agent (product discovery), Failure Agent (retry logic) |
-| **Real-time Events** | Redis pub/sub for Razorpay webhook events — async processing by the Failure Agent on payment failures |
-| **Audit Trail** | Immutable audit log with HMAC signatures — every money action chained and verifiable |
-| **MCP Catalog Server** | Exposes product catalog as MCP tools for agent discovery |
+| **AP2 Protocol**  | JWS-signed purchase mandates — off-chain intent, on-chain settlement |
+| **Guardian Agent**| Real-time fraud bounds: spend caps, category whitelist, velocity scoring |
+| **ShopBot Agent** | Natural-language product discovery → signed checkout → payment |
+| **Growth Agent**  | Abandoned-cart analysis → automated recovery campaigns (agentic) |
+| **Failure Agent** | Webhook retry with exponential backoff via Redis pub/sub |
 
 ---
 
-## 🏗 Architecture
+## Architecture
+
+### Service map
 
 ```
 merchant-ai/
-├── backend/
+├── backend/                    # FastAPI + Beanie + MongoDB + Redis + LangGraph
+│   │
 │   ├── app/
-│   │   ├── main.py                 # FastAPI app bootstrap, CORS, lifespan
-│   │   ├── config.py               # Pydantic Settings — all secrets via env
-│   │   ├── database.py             # Beanie async init + TTL indexes
-│   │   ├── models/                 # Beanie Document models (9 schemas)
-│   │   │   ├── merchant.py
-│   │   │   ├── product.py
-│   │   │   ├── intent_mandate.py     # Purchase intent definitions
-│   │   │   ├── cart_mandate.py      # Signed purchase order model
-│   │   │   ├── transaction.py
-│   │   │   ├── audit.py
-│   │   │   └── ...
-│   │   ├── api/                    # FastAPI routers
-│   │   │   ├── merchants.py
-│   │   │   ├── products.py
-│   │   │   ├── checkout.py         # AP2 signed purchase order checkout flow
-│   │   │   ├── webhooks.py         # Razorpay webhook + HMAC verification
-│   │   │   ├── growth.py           # Trigger Growth Agent campaigns
-│   │   │   ├── analytics.py        # Mongo aggregation pipelines
-│   │   │   └── audit.py            # Audit log queries
-│   │   ├── agents/                 # LangGraph multi-agent system
-│   │   │   ├── graph.py            # Compiled agent graph (StateGraph)
-│   │   │   ├── guardian.py         # Purchase validation & fraud checks
-│   │   │   ├── growth.py           # AI growth co-pilot
-│   │   │   ├── buyer.py           # ShopBot / Buyer Agent
-│   │   │   ├── catalog.py          # Product discovery
-│   │   │   ├── failure.py          # Error recovery & retry logic
-│   │   │   └── tools.py            # Shared agent tool scaffold
-│   │   ├── ap2/                    # AP2 protocol core
-│   │   │   ├── crypto.py           # JWS sign/verify (trust boundary)
-│   │   │   ├── mandates.py         # Purchase intent + signed order creation
-│   │   │   └── schemas.py          # JSON-LD purchase order structure
-│   │   ├── mcp/
-│   │   │   └── server.py           # MCP Catalog Server
-│   │   └── razorpay_client/        # Razorpay SDK wrapper
-│   │       ├── client.py
-│   │       └── webhooks.py
-│   └── requirements.txt
+│   │   ├── main.py              → FastAPI bootstrap, CORS, lifespan hooks
+│   │   ├── config.py            → Pydantic Settings, all secrets via env
+│   │   ├── database.py          → Beanie async init + TTL indexes
+│   │   ├── models/              → Beanie Document models (9 schemas)
+│   │   ├── api/                 → FastAPI routers
+│   │   ├── agents/              → LangGraph multi-agent system
+│   │   ├── ap2/                 → AP2 protocol core (crypto, mandates, schemas)
+│   │   ├── razorpay_client/     → Razorpay SDK wrapper
+│   │   └── mcp/                 → MCP Catalog Server
+│   │
+│   └── tests/                   → 21 tests — AP2 crypto, Guardian, checkout
 │
-├── frontend/
+├── frontend/                    # Next.js 14 + Tailwind + shadcn/ui
 │   ├── app/
-│   │   ├── dashboard/              # Merchant dashboard
-│   │   ├── demo/shopbot/          # ShopBot buyer flow demo
-│   │   └── ...
-│   ├── components/                 # shadcn/ui + custom components
-│   └── lib/api.ts                 # Axios instance + token management
+│   │   ├── store/               → Customer portal (browsing + ShopBot widget)
+│   │   └── merchant/            → Merchant portal (dashboard, catalog, analytics)
+│   ├── components/              → Shared UI components
+│   └── lib/                     → API client, AP2 hooks, utilities
 │
 ├── docker-compose.yml
 ├── .env.example
 └── README.md
 ```
 
----
-
-## 🔄 Core Flows
-
-### AP2 Buyer Checkout Flow
+### AP2 Protocol
 
 ```
-1. BUYER presents signed purchase order (JWS)
-   → POST /api/v1/checkout
-   → Buyer signs a purchase commitment with their private key off-chain
-
-2. GUARDIAN validation
-   → Guardian Agent validates the purchase commitment scope:
-     - Daily spend ≤ max_amount_daily
-     - Transaction ≤ max_amount_per_txn
-     - Category ∈ allowed_categories
-     - Merchant DID ∈ merchant whitelist
-     - Within duration_hours window
-
-3. PURCHASE ORDER stored
-   → Status: signed_pending_payment
-   → Nonce + expiry (7 days) for replay protection
-
-4. RAZORPAY ORDER created
-   → receipt = purchase_order_id
-   → notes: { purchase_order_id, merchant_id, buyer_did }
-
-5. FRONTEND collects payment
-   → Razorpay Checkout button
-
-6. WEBHOOK confirmation (trusted path only)
-   → POST /api/v1/webhooks/razorpay
-   → HMAC-SHA256 signature verification
-   → payment.captured → PurchaseOrder.status = "paid"
-   → Order.paid → PurchaseOrder.status = "settled"
-   → Event published to Redis → Failure Agent processes
-
-7. AUDIT LOG entry
-   → Immutable, HMAC-signed chain
-   → action_type: CAPTURE_PAYMENT / REFUND
-   → hmac_signature links to previous entry
+┌──────────┐  1. INTEN T_MANDATE                          ┌───────────┐
+│  Buyer   │     buyer_did → agent_did                    │  Guardian │
+│  Agent   │────┬───────────────────────────────────────→│  Agent    │
+│          │     │ max_amount_daily, category_whitelist   │           │
+└──────────┘     │                                      └───────────┘
+                 │  2. CART_MANDATE (JWS)
+                 │  merchant_id + cart_items + signature
+                 │
+                 ▼  3. VALIDATION
+               ┌──────────┐                               ┌──────────────┐
+               │  Guardian│── approved ──→                 │  AuditLog    │
+               │  Agent   │                               │  (HMAC chain)│
+               └──────────┘◄─ denied ────                └──────────────┘
+                 │
+                 ▼
+              ┌────────┐    4. RAZORPAY ORDER
+              │ Razorpay│──── create_order(amount, currency, receipt=cart_id)
+              └────────┘
+                 │
+              ┌────────┐    5. WEBHOOK (HMAC-SHA256)
+              │ Webhook│──── payment.captured → PurchaseOrder.paid = true
+              └────────┘
 ```
 
-### AI Growth Co-pilot Flow
+### Guardian Validation Rules
 
 ```
-1. AGENT analyzes abandoned carts
-   → Queries PurchaseOrder with status = signed_pending_payment
-   → Identifies stale (>24h, not settled)
+guardian.validate_action(MoneyAction):
 
-2. CAMPAIGN generation
-   → Growth Agent uses LLM to generate recovery campaign
-   → Creates Razorpay Payment Link via API
+  ├── max_amount_per_txn  ←  per-transaction ceiling
+  ├── max_amount_daily    ←  rolling 24h spend cap
+  ├── allowed_categories  ←  merchant category whitelist
+  ├── merchant_dids       ←  authorized merchant set
+  ├── duration_hours      ←  mandate expiry window
+  ├── velocity_score      ←  actions/min threshold
+  └── risk_score          ←  LLM-based anomaly baseline
 
-3. DISPATCH
-   → Email/SMS via campaign config
-   → Tracks click-through + payment
-
-4. FAILURE handling
-   → Failure Agent catches failed webhooks
-   → Queues retry with exponential backoff
-   → Redis pub/sub triggers reprocessing
+  decision ∈ {approved, denied, escalated}
 ```
 
 ---
 
-## 🛡 Security Highlights
+## Deployment
 
-| Layer | Implementation |
-|---|---|
-| **Authentication** | JWT (HS256) — access tokens with configurable expiry |
-| **Password Security** | N/A (API-first — auth handled by integration layer) |
-| **Webhooks** | HMAC-SHA256 verification of `X-Razorpay-Signature` against `RAZORPAY_WEBHOOK_SECRET` |
-| **Signed Purchase Orders** | Purchase commitments signed with buyer's ES256 private key; verified against buyer's public key |
-| **Guardian Agent** | Enforces spend limits, category whitelist, merchant whitelist, time window — validation before any Razorpay order creation |
-| **Nonce & Expiry** | Each purchase order has a UUID nonce + 7-day expiry; prevents replay attacks |
-| **CORS** | Hardened — origins parsed from `ALLOWED_ORIGINS` env, stripped, wildcard handled separately from credentials |
-| **Secrets** | All secrets in environment variables — never hardcoded; `.env` + `.env.local` in `.gitignore` |
-| **Audit Trail** | Immutable log entries with HMAC-SHA256 signatures chained to previous entry — tamper-evident |
-| **Redis** | Webhook → Redis → async processing; try/finally ensures connection cleanup |
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-| Component | Status |
-|---|---|
-| Docker Desktop | ✅ v29+ recommended |
-| Python | ✅ 3.11+ (for local dev) |
-| Node.js | ✅ 24+ (for local dev) |
-| Razorpay Account | ✅ Active Razorpay merchant account (test or live mode) — provides API keys and webhook secret |
-
----
-
-### 1. Clone & Configure
+### Local development
 
 ```bash
+# 1. Configure
 git clone https://github.com/YVM-1109/Merchant-AI.git
 cd merchant-ai
 cp .env.example .env
-```
+# Edit .env — see Configuration Reference below
 
-Edit `.env` with your values:
-
-```bash
-# ── Backend ──
-MONGODB_URL=mongodb://admin:password@mongo:27017/merchant_ai?authSource=admin
-MONGODB_DB_NAME=merchant_ai
-REDIS_URL=redis://redis:6379/0
-
-# Razorpay (test mode — get from https://dashboard.razorpay.com/)
-RAZORPAY_KEY_ID=rzp_test_xxxxx
-RAZORPAY_KEY_SECRET=xxxxxxxx
-RAZORPAY_WEBHOOK_SECRET=whsec_xxxxx
-
-# JWT (generate with: openssl rand -base64 32)
-JWT_SECRET=YOUR_BASE64_ENCODED_256_BIT_SECRET
-
-# CORS (comma-separated origins)
-ALLOWED_ORIGINS=http://localhost:3000
-```
-
----
-
-### 2. Start Everything
-
-```bash
+# 2. Start services
 docker compose up --build
+
+# 3. Verify
+curl http://localhost:8000/health
+# → {"status":"ok"}
+
+# Services
+# Backend API:    http://localhost:8000
+# Swagger UI:     http://localhost:8000/docs
+# Frontend:       http://localhost:3000
+# Mongo Express:  http://localhost:8081
+# Redis Admin:    http://localhost:8082
 ```
 
-| Service | URL |
-|---|---|
-| Backend API | http://localhost:8000 |
-| Swagger UI | http://localhost:8000/docs |
-| Frontend | http://localhost:3000 |
-| Mongo Express | http://localhost:8081 |
-| Redis Commander | http://localhost:8082 |
+### Razorpay webhook (local)
 
----
-
-### 3. Razorpay Webhook (Local Testing)
-
-For webhooks to reach your local backend, use a tunnel:
+For webhook delivery during local development, tunnel your backend:
 
 ```bash
-# Option 1: ngrok
 ngrok http 8000
-# → copy the https URL, e.g. https://abcd-1234.ngrok-free.app
-
-# Option 2: Cloudflare Tunnel
-cloudflared tunnel --url http://localhost:8000
+# → https://abcd-1234.ngrok-free.app
 ```
 
-In **Razorpay Dashboard → Settings → Webhooks**:
+In Razorpay Dashboard → Settings → Webhooks:
 
-- **URL**: `https://your-tunnel-url/api/v1/webhooks/razorpay`
-- **Secret**: same as `RAZORPAY_WEBHOOK_SECRET` in `.env`
-- **Events**: `payment.captured`, `payment.failed`, `order.paid`, `refund.processed`
+| Field    | Value                                         |
+|---|---|
+| URL      | `https://<your-tunnel>/api/v1/webhooks/razorpay` |
+| Secret   | Same as `RAZORPAY_WEBHOOK_SECRET` in `.env`        |
+| Events   | `payment.captured`, `payment.failed`, `order.paid`, `refund.processed` |
 
 ---
 
-## 🧪 Running Tests
+## API Reference
+
+### Healthcheck
+
+`GET /health`
+
+### Merchants
+
+`POST /api/v1/merchants` — Register a new merchant
+`GET /api/v1/merchants/{id}` — Retrieve merchant details
+
+### Products
+
+`GET /api/v1/products/merchant/{merchant_id}` — List products
+`POST /api/v1/products` — Create a product
+`GET /api/v1/products/{id}` — Get single product
+`PATCH /api/v1/products/{id}` — Update product (partial)
+
+### Checkout (AP2)
+
+`POST /api/v1/checkout` — Full AP2 flow: intent mandate → cart mandate → Guardian validation → Razorpay order
+
+### Analytics
+
+`GET /api/v1/analytics/dashboard/{merchant_id}?days=30` — Merchant dashboard metrics
+`GET /api/v1/analytics/guardian-stats/{merchant_id}?days=30` — Guardian intervention + risk distribution
+`GET /api/v1/analytics/daily-trend/{merchant_id}?days=30` — Daily revenue trend
+
+### Webhooks
+
+`POST /api/v1/webhooks/razorpay` — Razorpay webhook endpoint (public, HMAC-verified)
+
+---
+
+## Configuration
+
+### Backend environment variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `MONGODB_URL` | ✅ | — | MongoDB connection string |
+| `MONGODB_DB_NAME` | ✅ | `merchant_ai` | Database name |
+| `REDIS_URL` | ✅ | `redis://redis:6379/0` | Redis connection URL |
+| `RAZORPAY_KEY_ID` | ✅ | — | Razorpay key ID (test or live) |
+| `RAZORPAY_KEY_SECRET` | ✅ | — | Razorpay key secret |
+| `RAZORPAY_WEBHOOK_SECRET` | ✅ | — | Webhook HMAC secret |
+| `JWT_SECRET` | ✅ | — | Base64-encoded 256-bit JWT signing key |
+| `ALLOWED_ORIGINS` | ❌ | `http://localhost:3000` | Comma-separated CORS origins |
+
+Generate a JWT secret:
+
+```bash
+openssl rand -base64 32
+```
+
+---
+
+## Development
+
+### Backend tests
 
 ```bash
 cd backend
 python -m pytest tests/ -v
 ```
 
-**21 tests** covering:
+**21 tests** cover:
 
-- AP2 cryptography (JWS signing & verification, tamper detection)
-- Guardian Agent bounds checking (approval + denial paths)
-- Checkout flow (purchase intent reuse, signed purchase order creation)
-- Webhook handler (HMAC signature verification, Redis pub/sub)
-- Razorpay client wrapper (order creation, webhook signature verification)
-
-Frontend E2E tests:
-
-```bash
-cd frontend
-npx playwright test
-```
-
----
-
-## 📦 Production Build
-
-### Backend
-
-```bash
-cd backend
-docker compose up --build -d
-```
+- AP2 cryptography — JWS signing/verification, tamper detection
+- Guardian Agent — approval + denial paths, bounds checking
+- Checkout flow — intent reuse, signed cart mandate creation
+- Webhook handler — HMAC verification, Redis pub/sub
+- Razorpay client — order creation, signature validation
 
 ### Frontend
 
 ```bash
 cd frontend
-npm run build
-# Output: .next/ → deploy to Vercel, nginx, or static host
+npm install
+npm run dev
+# → http://localhost:3000
+```
+
+```bash
+# E2E tests (Playwright)
+npx playwright test
 ```
 
 ---
 
-## 🐳 Docker
+## Security
 
-```yaml
-# docker-compose.yml (key services)
-services:
-  mongo:
-    image: mongo:7.0
-    volumes:
-      - mongo_data:/data/db
-    ports: ["27017:27017"]
-
-  redis:
-    image: redis:7-alpine
-    ports: ["6379:6379"]
-
-  backend:
-    build: ./backend
-    env_file: ./backend/.env
-    ports: ["8000:8000"]
-    depends_on: [mongo, redis]
-
-  frontend:
-    build: ./frontend
-    ports: ["3000:3000"]
-    env_file: ./frontend/.env
-    depends_on: [backend]
-
-  mongo-express:
-    image: mongo-express:latest
-    ports: ["8081:8081"]
-    depends_on: [mongo]
-```
+| Layer | Implementation |
+|---|---|
+| **Transport** | HTTPS everywhere (Nginx terminates TLS in prod) |
+| **Auth** | JWT (HS256) access tokens — configurable expiry |
+| **Webhooks** | HMAC-SHA256 verification of `X-Razorpay-Signature` |
+| **Purchase Orders** | ES256 signatures on JWS-encoded mandates |
+| **Fraud** | Guardian Agent validates spend, category, velocity before payment creation |
+| **Replay Protection** | UUID nonce + 7-day expiry on every mandate |
+| **CORS** | Strict origin allowlist via `ALLOWED_ORIGINS` |
+| **Audit Trail** | Immutable HMAC-chained log — tamper-evident |
+| **Secrets** | Environment variables only — `.env` in `.gitignore` |
 
 ---
 
-## 📁 API Reference
+## Known Limitations
 
-### Auth & Merchants
-
-| Method | Path | Description |
-|---|---|---|
-| GET | `/health` | Health check |
-| POST | `/api/v1/merchants` | Register new merchant |
-| GET | `/api/v1/merchants/{id}` | Get merchant |
-
-### Products
-
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/v1/products/merchant/{merchant_id}` | List all products for merchant |
-| POST | `/api/v1/products` | Create product |
-| GET | `/api/v1/products/{id}` | Get single product |
-
-### Checkout (AP2)
-
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/v1/checkout` | AP2 checkout flow — creates purchase intent, signs purchase order, Guardian validates |
-
-### Webhooks
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| POST | `/api/v1/webhooks/razorpay` | Public (HMAC) | Receive Razorpay events — signature verified via HMAC-SHA256 |
-
-### Growth Agent
-
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/v1/growth/campaigns` | Trigger AI Growth Agent campaign generation |
-
-### Analytics
-
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/v1/analytics/dashboard/{merchant_id}` | Mongo aggregation: revenue, purchase order volume, payment failure rate |
+1. **Redis pub/sub** uses single-node in Docker Compose — switch to Redis Cluster for HA
+2. **Email/SMS dispatch** — campaigns are generated but not yet sent (Growth Agent stops at link creation)
+3. **Webhook idempotency** — relies on PO status transitions; add explicit key tracking for high throughput
+4. **Agent persistence** — LangGraph checkpoints stored in MongoDB; long conversations may need archival
 
 ---
 
-## 🔧 Configuration Reference
+## Roadmap
 
-### Backend Environment Variables
-
-| Variable | Required | Description |
-|---|---|---|
-| `MONGODB_URL` | ✅ | MongoDB connection string |
-| `MONGODB_DB_NAME` | ✅ | Database name (default: `merchant_ai`) |
-| `REDIS_URL` | ✅ | Redis connection URL |
-| `RAZORPAY_KEY_ID` | ✅ | Razorpay test/live key ID |
-| `RAZORPAY_KEY_SECRET` | ✅ | Razorpay test/live key secret |
-| `RAZORPAY_WEBHOOK_SECRET` | ✅ | Webhook signature secret (HMAC-SHA256) |
-| `JWT_SECRET` | ✅ | Base64-encoded 256-bit secret for JWT signing |
-| `ALLOWED_ORIGINS` | ❌ | Comma-separated CORS origins (default: `http://localhost:3000`) |
-
----
-
-## 🌱 Seeded Data
-
-The backend auto-seeds on first run if MongoDB is empty:
-
-| Document | Count | Content |
-|---|---|---|
-| Merchant | 1 | `demo-merchant` — for quick testing |
-| Products | 3 | Wireless mouse, mechanical keyboard, USB-C hub |
-| Purchase Intent | 0 | Created on-demand per checkout |
-
----
-
-## 🐛 Known Limitations
-
-1. **Single-instance Redis** — Redis pub/sub uses single-node in Docker Compose. For multi-instance deployments, ensure a shared Redis cluster.
-2. **No email delivery** — The Growth Agent generates campaigns and payment links, but email/SMS dispatch is not yet integrated.
-3. **Webhook idempotency** — Currently relies on purchase order status transitions. For high-throughput, add explicit idempotency key tracking.
-4. **Agent persistence** — LangGraph checkpoints are persisted to MongoDB, but long-running conversations may need archive strategy.
-
----
-
-## 🗺 Roadmap
-
-- Email/SMS campaign dispatch integration
+- Email/SMS campaign dispatch via SendGrid/Twilio
 - Multi-tenant agent isolation (per-merchant agent instances)
 - Real-time dashboard with WebSocket/SSE updates
-- x402 protocol integration (Pay-to-use-agent APIs)
-- Solana integration via x402 for on-chain settlements
-- Advanced fraud scoring (LLM-based anomaly detection)
+- x402 protocol integration (pay-to-use agent APIs)
+- Solana integration for on-chain settlements
+- LLM-based anomaly detection for Guardian scoring
 - White-label merchant portal builder
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-1. Fork the repo
-2. Create feature branch: `git checkout -b feat/amazing-feature`
-3. Install deps: `pip install -r backend/requirements.txt`
-4. Commit: `feat: add amazing feature`
-5. Push and open PR
+```bash
+git checkout -b feat/amazing-feature
+pip install -r backend/requirements.txt
+cd frontend && npm install
 
-**Code style**:
+git commit -m "feat: add amazing feature"
+git push
+```
 
-- Backend: PEP 8, type hints on all function signatures, async/await throughout
+**Code style:**
+
+- Backend: PEP 8, type hints required, async/await throughout
 - Frontend: ESLint + Prettier, TypeScript strict mode
 
 ---
 
-> **Reference implementation — not certified for production financial workloads
+> **Reference implementation — not certified for production financial workloads.**

@@ -4,7 +4,7 @@ import api from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import {
-  Package, Shield, Bot,
+  BarChart3, Package, Shield, Bot,
 } from "lucide-react";
 import NavigationToggle from "@/components/NavigationToggle";
 import DashboardCharts from "@/components/DashboardCharts";
