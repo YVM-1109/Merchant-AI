@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import api from "@/lib/api";
 
@@ -20,14 +20,6 @@ interface Merchant {
 }
 
 export default function ProductEditorPage() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <ProductEditorContent />
-    </Suspense>
-  );
-}
-
-function ProductEditorContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const productId = searchParams.get("id");
