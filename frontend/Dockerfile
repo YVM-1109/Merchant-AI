@@ -24,4 +24,4 @@ COPY --from=builder /app/public ./public
 
 EXPOSE 3000
 
-CMD ["npx", "next", "start", "--host", "0.0.0.0", "--port", "3000"]
+CMD ["npx", "next", "start", "--port", "3000"]

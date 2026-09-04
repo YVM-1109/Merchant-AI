@@ -4,9 +4,10 @@ import api from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import { AP2Crypto } from "@/lib/ap2";
 import { useState, useEffect } from "react";
-import { ShoppingCart, Trash2, ArrowLeft } from "lucide-react";
+import { ShoppingCart, Trash2, ArrowLeft, Shield, CheckCircle, AlertCircle, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Suspense } from "react";
 
 interface CartItem {
   product_id: string;
@@ -29,11 +30,38 @@ interface CheckoutResponse {
 }
 
 export default function CartPage() {
+  return (
+    <Suspense fallback={<CartSkeleton />}>
+      <CartContent />
+    </Suspense>
+  );
+}
+
+function CartSkeleton() {
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="border-b bg-white shadow-sm">
+        <div className="container mx-auto px-4 py-4">
+          <div className="h-6 bg-slate-200 rounded animate-pulse w-48" />
+        </div>
+      </div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="space-y-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-20 bg-slate-200 rounded-lg animate-pulse" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CartContent() {
   const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState(false);
   const [merchantId] = useState("m_test");
   const [buyerDid] = useState("did:example:buyer_demo");
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [buyerKey, setBuyerKey] = useState("");
 
   useEffect(() => {
@@ -41,7 +69,13 @@ export default function CartPage() {
     if (saved) {
       setCart(JSON.parse(saved));
     }
-    setBuyerKey(AP2Crypto.generatePrivateKey());
+
+    let key = localStorage.getItem("store_buyer_key");
+    if (!key) {
+      key = AP2Crypto.generatePrivateKey();
+      localStorage.setItem("store_buyer_key", key);
+    }
+    setBuyerKey(key);
   }, []);
 
   const cartTotal = cart.reduce(
@@ -67,7 +101,10 @@ export default function CartPage() {
   async function checkout() {
     if (cart.length === 0) return;
 
-    setCheckoutLoading(true);
+    setLoading(true);
+    const savedTotal = cartTotal;
+    sessionStorage.setItem("checkout_total", String(savedTotal));
+
     try {
       const productIds = cart.map((c) => c.product_id);
       const quantities = cart.reduce(
@@ -87,10 +124,10 @@ export default function CartPage() {
       const url = new URL("/store/thanks", window.location.origin);
       url.searchParams.set("session_id", `checkout_${Date.now()}`);
       url.searchParams.set("success", String(data.success));
-      url.searchParams.set("cart_mandate_id", data.cart_mandate_id);
+      url.searchParams.set("cart_mandate_id", data.cart_mandate_id || "");
       url.searchParams.set("guardian_decision", data.guardian_decision?.decision || "");
       url.searchParams.set("order_id", data.razorpay_order?.id || "");
-      url.searchParams.set("message", data.message);
+      url.searchParams.set("message", data.message || "");
 
       router.push(url.toString().replace(window.location.origin, ""));
     } catch (err: any) {
@@ -101,28 +138,28 @@ export default function CartPage() {
       url.searchParams.set("message", msg);
       router.push(url.toString().replace(window.location.origin, ""));
     } finally {
-      setCheckoutLoading(false);
+      setLoading(false);
     }
   }
 
   if (cart.length === 0) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="border-b">
+      <div className="min-h-screen bg-slate-50">
+        <header className="border-b bg-white shadow-sm">
           <div className="container mx-auto px-4 py-4">
-            <Link href="/store" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+            <Link href="/store" className="flex items-center gap-2 text-slate-600 hover:text-slate-900">
               <ArrowLeft className="w-4 h-4" />
               Back to Store
             </Link>
           </div>
-        </div>
-        <div className="container mx-auto px-4 py-12 text-center">
-          <ShoppingCart className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+        </header>
+        <div className="container mx-auto px-4 py-16 text-center">
+          <ShoppingCart className="w-16 h-16 text-slate-300 mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2">Your cart is empty</h2>
-          <p className="text-muted-foreground mb-6">No items have been added to your cart yet.</p>
+          <p className="text-slate-500 mb-6">No items have been added to your cart yet.</p>
           <Link
             href="/store"
-            className="inline-block px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+            className="inline-flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
           >
             Browse Products
           </Link>
@@ -132,53 +169,56 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="border-b">
+    <div className="min-h-screen bg-slate-50">
+      {/* Header */}
+      <header className="border-b bg-white shadow-sm">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/store" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <Link href="/store" className="flex items-center gap-2 text-slate-600 hover:text-slate-900">
             <ArrowLeft className="w-4 h-4" />
             Back to Store
           </Link>
-          <Link href="/store/cart" className="flex items-center gap-2">
+          <Link href="/store/cart" className="flex items-center gap-2 text-slate-900">
             <ShoppingCart className="w-5 h-5" />
             Cart
           </Link>
         </div>
-      </div>
+      </header>
 
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
-        <h1 className="text-2xl font-bold mb-6">Shopping Cart</h1>
+      <main className="container mx-auto px-4 py-8 max-w-3xl">
+        <h1 className="text-2xl font-bold text-slate-900 mb-6">Your Cart</h1>
 
-        <div className="border rounded-lg overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="bg-muted/20 text-left text-sm font-medium">
-                <th className="px-4 py-3">Product</th>
-                <th className="px-4 py-3">Price</th>
-                <th className="px-4 py-3">Qty</th>
-                <th className="px-4 py-3">Total</th>
-                <th className="px-4 py-3 w-12"></th>
+              <tr className="bg-slate-50 border-b">
+                <th className="text-left px-4 py-3 text-sm font-medium text-slate-700">Product</th>
+                <th className="text-right px-4 py-3 text-sm font-medium text-slate-700">Price</th>
+                <th className="text-center px-4 py-3 text-sm font-medium text-slate-700">Qty</th>
+                <th className="text-right px-4 py-3 text-sm font-medium text-slate-700">Total</th>
+                <th className="w-12 px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {cart.map((item) => (
                 <tr key={item.product_id} className="border-t">
                   <td className="px-4 py-3">
-                    <div className="font-medium">{item.name}</div>
+                    <span className="font-medium text-slate-900">{item.name}</span>
                   </td>
-                  <td className="px-4 py-3 text-sm">{formatCurrency(item.base_price_paise)}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-right text-sm text-slate-600">
+                    {formatCurrency(item.base_price_paise)}
+                  </td>
+                  <td className="px-4 py-3 text-center">
                     <select
                       value={item.quantity}
                       onChange={(e) => updateQuantity(item.product_id, parseInt(e.target.value))}
-                      className="border rounded px-2 py-1 w-16 text-center"
+                      className="w-14 px-2 py-1 border border-slate-200 rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                         <option key={n} value={n}>{n}</option>
                       ))}
                     </select>
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium">
+                  <td className="px-4 py-3 text-right text-sm font-medium text-slate-900">
                     {formatCurrency(item.base_price_paise * item.quantity)}
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -196,27 +236,38 @@ export default function CartPage() {
           </table>
         </div>
 
-        <div className="mt-6 space-y-3 text-right">
-          <div className="flex justify-between text-lg">
-            <span>Subtotal</span>
-            <span>{formatCurrency(cartTotal)}</span>
+        {/* Total + checkout */}
+        <div className="mt-6 space-y-4">
+          <div className="flex justify-between items-center py-4 border-t">
+            <span className="text-sm text-slate-600">Subtotal</span>
+            <span className="text-xl font-bold text-slate-900">{formatCurrency(cartTotal)}</span>
           </div>
-          <div className="border-t pt-3">
-            <div className="flex justify-between text-xl font-bold">
-              <span>Total</span>
-              <span>{formatCurrency(cartTotal)}</span>
-            </div>
-          </div>
+
+          <button
+            onClick={checkout}
+            disabled={loading}
+            className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium hover:opacity-95 disabled:opacity-50 transition-opacity flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Processing checkout...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                Checkout with ShopBot (AP2)
+              </>
+            )}
+          </button>
         </div>
 
-        <button
-          onClick={checkout}
-          disabled={checkoutLoading}
-          className="w-full mt-6 px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium"
-        >
-          {checkoutLoading ? "Processing checkout..." : "Checkout with ShopBot"}
-        </button>
-      </div>
+        {/* Security note */}
+        <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+          <Shield className="w-3 h-3" />
+          <span>Your purchase will be validated by the Guardian Agent before payment is processed.</span>
+        </div>
+      </main>
     </div>
   );
 }
