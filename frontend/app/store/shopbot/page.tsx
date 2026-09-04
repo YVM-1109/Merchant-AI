@@ -160,7 +160,7 @@ export default function ShopBotPage() {
                       Product: {msg.data.product.name}
                     </div>
                     <div className="text-muted-foreground">
-                      Price: {formatCurrency(msg.data.product.base_price_paise)}
+                      Price: {formatCurrency(msg.data.product.price_paise)}
                     </div>
                   </div>
                 )}
@@ -201,7 +201,7 @@ export default function ShopBotPage() {
             placeholder="Type your request..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !loading && sendMessage()}
+            onKeyDown={(e) => e.key === "Enter" && !!buyerKey && !loading && sendMessage()}
             disabled={loading}
             className="flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-background"
           />

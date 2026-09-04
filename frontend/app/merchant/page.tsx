@@ -4,9 +4,10 @@ import api from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import {
-  BarChart3, Package, TrendingUp, Shield, Bot,
+  Package, Shield, Bot,
 } from "lucide-react";
 import NavigationToggle from "@/components/NavigationToggle";
+import DashboardCharts from "@/components/DashboardCharts";
 
 interface DashboardStats {
   revenue: {
@@ -140,6 +141,9 @@ export default function DashboardPage() {
           Catalog
         </button>
       </div>
+
+      {/* Charts: Guardian decisions, risk distribution, revenue trend */}
+      <DashboardCharts merchantId={merchantId} days={30} />
     </div>
   );
 }

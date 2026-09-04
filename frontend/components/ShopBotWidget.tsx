@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bot, User, Send, X, ShoppingCart, AlertCircle, Shield, CheckCircle } from "lucide-react";
+import { Bot, User, Send, X, ShoppingCart, Shield, CheckCircle } from "lucide-react";
 import api from "@/lib/api";
 import { AP2Crypto } from "@/lib/ap2";
 import { formatCurrency } from "@/lib/utils";
@@ -205,7 +205,7 @@ export default function ShopBotWidget({
                               Product: {msg.data.product.name}
                             </div>
                             <div className="text-muted-foreground">
-                              Price: {formatCurrency(msg.data.product.base_price_paise)}
+                              Price: {formatCurrency(msg.data.product.price_paise)}
                             </div>
                           </div>
                         )}

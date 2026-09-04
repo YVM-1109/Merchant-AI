@@ -61,7 +61,7 @@ function ProductEditorContent() {
     setSaving(true);
     try {
       if (productId) {
-        await api.put(`/api/v1/products/${productId}`, product);
+        await api.patch(`/api/v1/products/${productId}`, product);
       } else {
         await api.post(`/api/v1/products`, product);
       }
