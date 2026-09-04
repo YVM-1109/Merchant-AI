@@ -8,9 +8,14 @@ export default function Home() {
         <p className="text-xl text-muted-foreground mb-8 max-w-2xl">
           Agentic commerce operating system for Razorpay merchants.
         </p>
-        <Link href="/dashboard" className="inline-block bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors">
-          Open Dashboard →
-        </Link>
+        <div className="flex gap-4">
+          <Link href="/merchant" className="inline-block bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors">
+            Merchant Portal →
+          </Link>
+          <Link href="/demo/shopbot" className="inline-block border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-muted transition-colors">
+            Shop as Customer →
+          </Link>
+        </div>
       </div>
     </div>
   );
