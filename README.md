@@ -85,9 +85,9 @@ merchant-ai/
 ```
 ┌──────────┐  1. INTEN T_MANDATE                          ┌───────────┐
 │  Buyer   │     buyer_did → agent_did                    │  Guardian │
-│  Agent   │────┬───────────────────────────────────────→│  Agent    │
+│  Agent   │────┬───────────────────────────────────────→ │   Agent   │
 │          │     │ max_amount_daily, category_whitelist   │           │
-└──────────┘     │                                      └───────────┘
+└──────────┘     │                                        └───────────┘
                  │  2. CART_MANDATE (JWS)
                  │  merchant_id + cart_items + signature
                  │
