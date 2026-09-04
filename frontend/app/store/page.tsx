@@ -5,6 +5,8 @@ import { formatCurrency } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { Package, ShoppingCart, Star, Filter } from "lucide-react";
 import Link from "next/link";
+import NavigationToggle from "@/components/NavigationToggle";
+import ShopBotWidget from "@/components/ShopBotWidget";
 
 interface Product {
   product_id: string;
@@ -28,12 +30,23 @@ export default function StorePage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [merchantId] = useState("m_test");
+  const [showShopBotPrompt, setShowShopBotPrompt] = useState(false);
 
   useEffect(() => {
     loadProducts();
     const saved = localStorage.getItem("store_cart");
     if (saved) setCart(JSON.parse(saved));
   }, []);
+
+  // Cart abandonment detection: trigger ShopBot after 30s idle with items in cart
+  useEffect(() => {
+    if (cart.length > 0) {
+      const timer = setTimeout(() => {
+        setShowShopBotPrompt(true);
+      }, 30000);
+      return () => clearTimeout(timer);
+    }
+  }, [cart]);
 
   async function loadProducts() {
     try {
@@ -105,6 +118,11 @@ export default function StorePage() {
               <Link href="/store" className="hover:text-slate-900">Home</Link>
               <button className="hover:text-slate-900">Categories</button>
             </nav>
+          </div>
+
+          {/* Portal navigation toggle */}
+          <div className="hidden md:block">
+            <NavigationToggle />
           </div>
 
           <Link href="/store/cart" className="relative">
@@ -215,6 +233,14 @@ export default function StorePage() {
           </div>
         )}
       </main>
+
+      {/* ShopBot floating widget with abandonment detection */}
+      <ShopBotWidget
+        merchantId={merchantId}
+        buyerDid="did:example:buyer_demo"
+        initialMessage={cart.length > 0 ? `I have ${cart.length} items in my cart. Can you help me check out?` : undefined}
+        autoOpen={showShopBotPrompt}
+      />
     </div>
   );
 }

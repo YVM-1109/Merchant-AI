@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import {
   BarChart3, Package, TrendingUp, Shield, Bot,
 } from "lucide-react";
+import NavigationToggle from "@/components/NavigationToggle";
 
 interface DashboardStats {
   revenue: {
@@ -70,7 +71,10 @@ export default function DashboardPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <NavigationToggle />
+        </div>
         <select
           value={merchantId}
           onChange={(e) => setMerchantId(e.target.value)}
