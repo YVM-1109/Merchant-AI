@@ -7,6 +7,12 @@ from app.services.analytics import AnalyticsService
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 
 
+@router.get("/guardian-stats/{merchant_id}")
+async def guardian_stats(merchant_id: str, days: int = 30):
+    """Detailed Guardian decision stats with risk-score distribution."""
+    return await AnalyticsService.guardian_detailed_stats(merchant_id, days)
+
+
 @router.get("/dashboard/{merchant_id}")
 async def get_dashboard(merchant_id: str, days: int = 30):
     """Full dashboard metrics for a merchant."""

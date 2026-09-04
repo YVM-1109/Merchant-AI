@@ -87,6 +87,83 @@ class AnalyticsService:
         }
 
     @staticmethod
+    async def guardian_detailed_stats(merchant_id: str, days: int = 30) -> dict:
+        """Detailed Guardian decision stats with risk-score distribution.
+
+        Returns approved/denied/escalated counts, intervention rate,
+        and a bucketed risk distribution for charting confidence levels.
+        """
+        since = datetime.utcnow() - timedelta(days=days)
+
+        # Group by status for counts
+        status_pipeline = [
+            {
+                "$match": {
+                    "merchant_id": merchant_id,
+                    "action_type": {"$regex": "CREATE_ORDER|REFUND"},
+                    "timestamp": {"$gte": since},
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$status",
+                    "count": {"$sum": 1},
+                }
+            },
+        ]
+        status_results = await AuditLog.aggregate(status_pipeline).to_list()
+
+        approved_count = sum(r["count"] for r in status_results if "SUCCESS" in r["_id"])
+        denied_count = sum(r["count"] for r in status_results if "DENIED" in r["_id"])
+        escalated_count = sum(r["count"] for r in status_results if "PENDING" in r["_id"])
+        total = approved_count + denied_count + escalated_count
+
+        # Risk score distribution from embedded guardian_decision.risk_score
+        risk_pipeline = [
+            {
+                "$match": {
+                    "merchant_id": merchant_id,
+                    "action_type": {"$regex": "CREATE_ORDER|REFUND"},
+                    "timestamp": {"$gte": since},
+                    "guardian_decision.risk_score": {"$exists": True},
+                }
+            },
+            {
+                "$bucket": {
+                    "groupBy": "$guardian_decision.risk_score",
+                    "boundaries": [0, 0.3, 0.5, 1.0001],
+                    "default": "no_risk_data",
+                    "output": {
+                        "count": {"$sum": 1},
+                    },
+                }
+            },
+        ]
+        risk_results = await AuditLog.aggregate(risk_pipeline).to_list()
+
+        risk_distribution = {"low": 0, "medium": 0, "high": 0}
+        for bucket in risk_results:
+            key = bucket.get("_id")
+            count = bucket.get("count", 0)
+            if key == 0:  # 0 <= risk < 0.3
+                risk_distribution["low"] += count
+            elif key == 0.3:  # 0.3 <= risk < 0.5
+                risk_distribution["medium"] += count
+            elif key == 0.5:  # 0.5 <= risk <= 1.0
+                risk_distribution["high"] += count
+
+        return {
+            "merchant_id": merchant_id,
+            "period_days": days,
+            "approved": approved_count,
+            "denied": denied_count,
+            "escalated": escalated_count,
+            "total_actions": total,
+            "intervention_rate_pct": round(((denied_count + escalated_count) / total * 100), 2) if total > 0 else 0,
+            "risk_distribution": risk_distribution,
+        }
+
+    @staticmethod
     async def top_products_by_revenue(merchant_id: str, limit: int = 10) -> list[dict]:
         """Top-selling products by total revenue generated."""
         pipeline = [
