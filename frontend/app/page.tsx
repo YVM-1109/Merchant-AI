@@ -12,7 +12,7 @@ export default function Home() {
           <Link href="/merchant" className="inline-block bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors">
             Merchant Portal →
           </Link>
-          <Link href="/demo/shopbot" className="inline-block border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-muted transition-colors">
+          <Link href="/store" className="inline-block border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-muted transition-colors">
             Shop as Customer →
           </Link>
         </div>

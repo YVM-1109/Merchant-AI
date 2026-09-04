@@ -8,6 +8,7 @@ from app.api.checkout import router as checkout_router
 from app.api.webhooks import router as webhooks_router
 from app.api.analytics import router as analytics_router
 from app.api.demo import router as demo_router
+from app.api.store import router as store_router
 from app.api.audit import router as audit_router
 from app.api.growth import router as growth_router
 from app.database import MongoDB
@@ -55,6 +56,7 @@ app.include_router(analytics_router)
 app.include_router(demo_router)
 app.include_router(audit_router)
 app.include_router(growth_router)
+app.include_router(store_router)
 
 
 @app.get("/health")
