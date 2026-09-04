@@ -8,7 +8,7 @@
 ║                                                                              ║
 ║           AP2 Protocol  ·  Guardian Agent  ·  LangGraph Multi-Agent          ║
 ║                                                                              ║
-║    < buyer> ──JWS─> < guardian> ──validated─> < razorpay order> ──settle   ║
+║    < buyer> ──JWS─> < guardian> ──validated─> < razorpay order> ──settle     ║
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -85,21 +85,21 @@ merchant-ai/
 ```
 ┌──────────┐  1. INTEN T_MANDATE                          ┌───────────┐
 │  Buyer   │     buyer_did → agent_did                    │  Guardian │
-│  Agent   │────┬───────────────────────────────────────→│  Agent    │
+│  Agent   │────┬───────────────────────────────────────→ │   Agent   │
 │          │     │ max_amount_daily, category_whitelist   │           │
-└──────────┘     │                                      └───────────┘
+└──────────┘     │                                        └───────────┘
                  │  2. CART_MANDATE (JWS)
                  │  merchant_id + cart_items + signature
                  │
                  ▼  3. VALIDATION
                ┌──────────┐                               ┌──────────────┐
-               │  Guardian│── approved ──→                 │  AuditLog    │
+               │  Guardian│── approved ──→                │  AuditLog    │
                │  Agent   │                               │  (HMAC chain)│
-               └──────────┘◄─ denied ────                └──────────────┘
+               └──────────┘◄─ denied ────                 └──────────────┘
                  │
                  ▼
               ┌────────┐    4. RAZORPAY ORDER
-              │ Razorpay│──── create_order(amount, currency, receipt=cart_id)
+              │Razorpay│──── create_order(amount, currency, receipt=cart_id)
               └────────┘
                  │
               ┌────────┐    5. WEBHOOK (HMAC-SHA256)
