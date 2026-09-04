@@ -14,6 +14,11 @@ interface Product {
   is_active: boolean;
 }
 
+interface Merchant {
+  merchant_id: string;
+  business_name: string;
+}
+
 export default function ProductEditorPage() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
@@ -32,18 +37,31 @@ function ProductEditorContent() {
     description: "",
     base_price_paise: 0,
     category: "",
-    merchant_id: "m_test",
+    merchant_id: "",
     is_active: true,
   });
-
-  const [loading, setLoading] = useState(false);
+  const [merchants, setMerchants] = useState<Merchant[]>([]);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    loadMerchants();
     if (productId) {
       loadProduct(productId);
     }
   }, [productId]);
+
+  async function loadMerchants() {
+    try {
+      const res = await api.get("/api/v1/merchants/");
+      setMerchants(res.data);
+      if (res.data.length > 0 && !productId) {
+        setProduct((p) => ({ ...p, merchant_id: res.data[0].merchant_id }));
+      }
+    } catch (err) {
+      console.error("Failed to load merchants:", err);
+    }
+  }
 
   async function loadProduct(id: string) {
     setLoading(true);
@@ -61,9 +79,9 @@ function ProductEditorContent() {
     setSaving(true);
     try {
       if (productId) {
-        await api.patch(`/api/v1/products/${productId}`, product);
+        await api.patch(`/api/v1/products/${productId}/`, product);
       } else {
-        await api.post(`/api/v1/products`, product);
+        await api.post(`/api/v1/products/`, product);
       }
       router.push("/merchant/catalog");
     } catch (err) {
@@ -142,13 +160,19 @@ function ProductEditorContent() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Merchant ID</label>
-          <input
-            type="text"
+          <label className="block text-sm font-medium mb-1">Merchant</label>
+          <select
             value={product.merchant_id}
             onChange={(e) => setProduct({ ...product, merchant_id: e.target.value })}
             className="w-full border rounded px-3 py-2"
-          />
+          >
+            <option value="">Select Merchant</option>
+            {merchants.map((m) => (
+              <option key={m.merchant_id} value={m.merchant_id}>
+                {m.business_name} ({m.merchant_id})
+              </option>
+            ))}
+          </select>
         </div>
 
         <label className="flex items-center gap-2">
