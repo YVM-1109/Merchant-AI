@@ -8,7 +8,7 @@
 ║                                                                              ║
 ║           AP2 Protocol  ·  Guardian Agent  ·  LangGraph Multi-Agent          ║
 ║                                                                              ║
-║    < buyer> ──JWS─> < guardian> ──validated─> < razorpay order> ──settle   ║
+║    < buyer> ──JWS─> < guardian> ──validated─> < razorpay order> ──settle     ║
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -93,13 +93,13 @@ merchant-ai/
                  │
                  ▼  3. VALIDATION
                ┌──────────┐                               ┌──────────────┐
-               │  Guardian│── approved ──→                 │  AuditLog    │
+               │  Guardian│── approved ──→                │  AuditLog    │
                │  Agent   │                               │  (HMAC chain)│
-               └──────────┘◄─ denied ────                └──────────────┘
+               └──────────┘◄─ denied ────                 └──────────────┘
                  │
                  ▼
               ┌────────┐    4. RAZORPAY ORDER
-              │ Razorpay│──── create_order(amount, currency, receipt=cart_id)
+              │Razorpay│──── create_order(amount, currency, receipt=cart_id)
               └────────┘
                  │
               ┌────────┐    5. WEBHOOK (HMAC-SHA256)
